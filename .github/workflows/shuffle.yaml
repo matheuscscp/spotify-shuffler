@@ -1,0 +1,22 @@
+name: shuffle
+
+on:
+  workflow_dispatch:
+
+jobs:
+  shuffle:
+    runs-on: ubuntu-latest
+    environment: shuffle
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+    - uses: actions/checkout@v4
+    - uses: google-github-actions/auth@v2
+      with:
+        project_id: ${{ secrets.GCP_PROJECT_ID }}
+        workload_identity_provider: ${{ secrets.GCP_WID_PROVIDER }}
+    - run: go run .
+      env:
+        SPOTIFY_ID: ${{ secrets.SPOTIFY_ID }}
+        SPOTIFY_SECRET: ${{ secrets.SPOTIFY_SECRET }}
