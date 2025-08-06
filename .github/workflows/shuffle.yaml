@@ -18,5 +18,5 @@ jobs:
         workload_identity_provider: ${{ secrets.GCP_WID_PROVIDER }}
     - run: go run .
       env:
-        SPOTIFY_ID: ${{ secrets.SPOTIFY_ID }}
+        SPOTIFY_ID: ${{ vars.SPOTIFY_ID }}
         SPOTIFY_SECRET: ${{ secrets.SPOTIFY_SECRET }}
