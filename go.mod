@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	cloud.google.com/go/storage v1.56.0
-	github.com/matheuscscp/serve-for-me/serveforme v0.4.0
+	github.com/matheuscscp/serve-for-me/serveforme v0.5.0
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/spf13/pflag v1.0.7
 	github.com/zmb3/spotify/v2 v2.4.3
