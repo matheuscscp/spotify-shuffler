@@ -11,7 +11,6 @@ import (
 	"os/signal"
 	"strings"
 	"syscall"
-	"time"
 
 	"cloud.google.com/go/storage"
 	"github.com/pkg/browser"
@@ -19,11 +18,14 @@ import (
 	"github.com/zmb3/spotify/v2"
 	spotifyauth "github.com/zmb3/spotify/v2/auth"
 	"go.yaml.in/yaml/v2"
+
+	"github.com/matheuscscp/serve-for-me/serveforme"
 )
 
 const (
-	redirectAddr = "127.0.0.1:31415"
-	redirectURI  = "http://" + redirectAddr
+	serverURL   = "https://serve-for-me-r2enu3lpxa-nw.a.run.app"
+	serverPath  = "/spotify-shuffler"
+	redirectURI = serverURL + serverPath
 
 	envVarClientID     = "SPOTIFY_ID"
 	envVarClientSecret = "SPOTIFY_SECRET"
@@ -45,6 +47,8 @@ var requiredScopes = []string{
 }
 
 func main() {
+	ctx := setupSignalHandler()
+
 	var (
 		credsPath     string
 		forceRefresh  bool
@@ -93,9 +97,13 @@ func main() {
 
 	var spotifyClient *spotify.Client
 	clientCreated := make(chan struct{})
-	authServer := &http.Server{
-		Addr: redirectAddr,
-		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
+	authCtx, cancelAuthCtx := context.WithCancel(ctx)
+	defer cancelAuthCtx()
+	authServerStarted := make(chan struct{})
+
+	authHandler := map[string]http.Handler{
+		serverPath: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if spotifyClient != nil {
 				return
 			}
@@ -110,12 +118,29 @@ func main() {
 			close(clientCreated)
 		}),
 	}
+
+	var opts []serveforme.ClientOption
+	if os.Getenv("GITHUB_ACTIONS") == "true" {
+		opts = append(opts, serveforme.WithGitHubActions())
+	} else {
+		opts = append(opts, serveforme.WithGoogleIDToken())
+	}
+
+	authServerClosed := make(chan struct{})
 	go func() {
-		if err := authServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+		defer close(authServerClosed)
+		if err := serveforme.ServeForMe(authCtx, serverURL, authServerStarted, authHandler, opts...); err != nil {
 			fmt.Fprintf(os.Stderr, "error starting auth server: %v\n", err)
 			os.Exit(1)
 		}
 	}()
+
+	select {
+	case <-authServerStarted:
+	case <-ctx.Done():
+		fmt.Fprintf(os.Stderr, "authentication server did not start: %v\n", ctx.Err())
+		os.Exit(1)
+	}
 
 	url := auth.AuthURL(state)
 	if err := browser.OpenURL(url); err != nil {
@@ -123,15 +148,8 @@ func main() {
 	}
 
 	<-clientCreated
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	if err := authServer.Shutdown(shutdownCtx); err != nil {
-		fmt.Fprintf(os.Stderr, "error shutting down auth server: %v\n", err)
-		os.Exit(1)
-	}
-
 	fmt.Print("\nAuthentication successful!\n\n")
-	ctx := setupSignalHandler()
+	cancelAuthCtx()
 
 	storageClient, err := storage.NewClient(ctx)
 	if err != nil {
