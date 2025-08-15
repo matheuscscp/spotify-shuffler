@@ -16,7 +16,7 @@ jobs:
       with:
         project_id: ${{ secrets.GCP_PROJECT_ID }}
         workload_identity_provider: ${{ secrets.GCP_WID_PROVIDER }}
-    - run: go run .
+    - run: go run . -n 30
       env:
         SPOTIFY_ID: ${{ vars.SPOTIFY_ID }}
         SPOTIFY_SECRET: ${{ secrets.SPOTIFY_SECRET }}
